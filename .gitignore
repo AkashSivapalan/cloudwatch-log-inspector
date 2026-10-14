@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+*.db
+
+# Policy files generated while following docs/real-aws-testing.md
+trust.json
+permissions.json
+service-policy.json
+events.json
+
+# Terraform: state can hold infrastructure details; the lock file is committed.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfplan
+infra/terraform/crash.log

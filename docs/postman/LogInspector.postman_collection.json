@@ -1,0 +1,777 @@
+{
+  "info": {
+    "name": "CloudWatch Log Inspector",
+    "description": "Calls for testing the Log Inspector API. Run the server first (uv run uvicorn log_inspector.main:app --reload). Set the roleArn collection variable to your role's ARN. 'Create connection' saves connectionId for the other requests. Set the apiKey variable to a key from `uv run log-inspector create-user`; every request sends it.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "apiKey",
+      "value": ""
+    },
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "connectionId",
+      "value": ""
+    },
+    {
+      "key": "roleArn",
+      "value": "arn:aws:iam::123456789012:role/LogInspectorReadOnly"
+    },
+    {
+      "key": "logGroup",
+      "value": "/log-inspector/demo"
+    },
+    {
+      "key": "investigationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('status is ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create connection",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"my-account\",\n  \"region\": \"us-east-1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/connections",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('connectionId', body.connection.id);",
+              "console.log('Trust policy (paste into the role):\\n' + JSON.stringify(body.setup.trust_policy, null, 2));",
+              "console.log('Permissions policy (inline policy on the role):\\n' + JSON.stringify(body.setup.permissions_policy, null, 2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Get setup instructions",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/setup",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "setup"
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Set role ARN",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role_arn\": \"{{roleArn}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "role"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('awaiting verification', () => pm.expect(pm.response.json().status).to.eql('pending_verification'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Verify connection",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/verify",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "verify"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('verified', () => pm.expect(body.verified, body.error).to.be.true);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Get connection",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "7. List connections",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/connections",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections"
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. Set role with invalid ARN (expect 422)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role_arn\": \"not-an-arn\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "role"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('422 rejected', () => pm.response.to.have.status(422));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2. List canned queries",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/canned-queries",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "canned-queries"
+          ]
+        }
+      }
+    },
+    {
+      "name": "M2. List log groups",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/log-groups?limit=50",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "log-groups"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2. Run canned query (errors)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/query",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "query"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ],\n  \"canned_query\": \"errors\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "console.log(JSON.stringify(pm.response.json().rows, null, 2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2. Run custom query",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/query",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "query"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ],\n  \"query\": \"fields @timestamp, @message | filter @message like /timeout/ | sort @timestamp desc\",\n  \"limit\": 100\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M2. Invalid query (expect 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/query",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "query"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ],\n  \"query\": \"this is not a query\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('400 rejected', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M3. Analyze logs",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/analyze",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "analyze"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "body.clusters.forEach(c => console.log(`${c.level} x${c.count}  ${c.template}`));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M4. Diagnose",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}/diagnose",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}",
+            "diagnose"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ],\n  \"question\": \"Why did checkout fail?\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json().diagnosis;",
+              "console.log(d.summary);",
+              "d.root_causes.forEach(c => console.log(`[${c.confidence}] ${c.title}`));",
+              "pm.test('all evidence verified', () => d.root_causes.forEach(c => c.evidence.forEach(e => pm.expect(e.verified).to.be.true)));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M5. Start investigation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/investigations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "investigations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"connection_id\": \"{{connectionId}}\",\n  \"log_groups\": [\n    \"{{logGroup}}\"\n  ],\n  \"question\": \"Why did checkout fail?\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+              "pm.collectionVariables.set('investigationId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M5. Get investigation (send until finished)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/investigations/{{investigationId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "investigations",
+            "{{investigationId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const b = pm.response.json();",
+              "console.log(`status: ${b.status}`);",
+              "if (b.result) console.log(b.result.diagnosis.summary);",
+              "if (b.error) console.log(`error ${b.error_status}: ${b.error}`);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M5. List investigations",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/investigations?limit=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "investigations"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "M6. Who am I",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "M6. List my API keys",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/me/api-keys",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "me",
+            "api-keys"
+          ]
+        }
+      }
+    },
+    {
+      "name": "M6. Create an API key",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/me/api-keys",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "me",
+            "api-keys"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"second-key\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "console.log('New key (shown once): ' + pm.response.json().key);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "M6. Request without a key (expect 401)",
+      "request": {
+        "method": "GET",
+        "auth": {
+          "type": "noauth"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/connections",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Delete connection",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "{{baseUrl}}/connections/{{connectionId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "connections",
+            "{{connectionId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+# Keep secrets, local state, and build noise out of the image.
+.env
+.env.*
+!.env.example
+*.db
+.venv/
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+tests/
+docs/
+Dockerfile
+docker-compose.yml

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: log_inspector
+          POSTGRES_PASSWORD: log_inspector
+          POSTGRES_DB: log_inspector
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U log_inspector"
+          --health-interval 2s --health-timeout 3s --health-retries 20
+    env:
+      TEST_POSTGRES_URL: postgresql+psycopg://log_inspector:log_inspector@localhost:5432/log_inspector
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.7"
+      - run: uv sync --frozen
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Test (SQLite and Postgres)
+        run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: |
+          docker build -t log-inspector:ci .
+          docker build -f Dockerfile.lambda -t log-inspector-lambda:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name api -p 8000:8000 \
+            -e LOG_INSPECTOR_DATABASE_URL=sqlite:////tmp/ci.db log-inspector:ci
+          for i in $(seq 1 30); do curl -sf localhost:8000/health && exit 0; sleep 1; done
+          docker logs api; exit 1

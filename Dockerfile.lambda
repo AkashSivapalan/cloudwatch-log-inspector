@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+# AWS Lambda image. One image serves three functions; Terraform picks the handler for each:
+#   log_inspector.lambda_handlers.api | .worker | .admin
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_PYTHON_DOWNLOADS=never
+
+# Locked dependencies first (cached unless they change), then the app itself.
+WORKDIR /build
+COPY pyproject.toml uv.lock README.md ./
+RUN uv export --frozen --no-dev --no-emit-project --no-hashes -o requirements.txt \
+ && uv pip install --python /var/lang/bin/python --target "${LAMBDA_TASK_ROOT}" -r requirements.txt
+COPY src ./src
+RUN uv pip install --python /var/lang/bin/python --target "${LAMBDA_TASK_ROOT}" --no-deps . \
+ && rm -rf /build
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+CMD ["log_inspector.lambda_handlers.api"]

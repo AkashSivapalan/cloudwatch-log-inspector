@@ -1,0 +1,38 @@
+# Local stack: the API plus Postgres.
+#   docker compose up --build
+# The API reads your .env (Anthropic key, AWS profile name) and your ~/.aws credentials.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: log_inspector
+      POSTGRES_PASSWORD: log_inspector  # local only; production uses a managed secret
+      POSTGRES_DB: log_inspector
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U log_inspector -d log_inspector"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LOG_INSPECTOR_DATABASE_URL: postgresql+psycopg://log_inspector:log_inspector@db:5432/log_inspector
+      LOG_INSPECTOR_LOG_FORMAT: json
+    volumes:
+      # The service's AWS identity locally (the log-inspector profile). Read-only.
+      - ${USERPROFILE:-${HOME}}/.aws:/home/app/.aws:ro
+    ports:
+      # Host port; set API_PORT if 8000 is taken (e.g. by a local uvicorn).
+      - "${API_PORT:-8000}:8000"
+
+volumes:
+  pgdata:

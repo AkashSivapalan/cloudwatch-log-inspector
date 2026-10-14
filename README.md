@@ -26,13 +26,14 @@ service assumes it for short-lived access only when it needs your logs.
 3. **Analyse.** Error and warning lines are normalised and grouped into patterns, stack traces are
    extracted, error spikes are detected, and a timeline is built.
 4. **Diagnose.** Claude receives the redacted analysis and returns ranked root causes. Every quoted
-   piece of evidence is checked against the real log lines, so a hallucinated quote is rejected.
+   piece of evidence is checked against the real log lines and flagged `verified` or not, so a
+   hallucinated quote is visible.
 
 ## Design decisions
 
 - **Secrets and personal data are redacted before anything leaves the service.** Access keys,
   tokens, private keys, emails and similar patterns are replaced before analysis results are stored or sent to Claude.
-- **Evidence is verified, not trusted.** The model's citations must match actual log lines.
+- **Evidence is verified, not trusted.** The model's citations are checked against actual log lines.
 - **Per-user isolation and limits.** Users see only their own data. Limits are 120 requests a
   minute, 30 expensive operations an hour and 3 concurrent investigations, with `429` and
   `Retry-After` when exceeded.
@@ -168,8 +169,8 @@ which keeps the request open until Claude finishes.
 | `GET` | `/investigations/{id}` | Status (`queued` → `querying` → `analyzing` → `diagnosing` → `done`/`failed`) and, once done, the diagnosis. `?include_analysis=true` adds the M3 analysis |
 | `GET` | `/investigations` | History, newest first (`connection_id`, `status`, `limit`) |
 
-Investigations run on a small thread pool (`LOG_INSPECTOR_INVESTIGATION_WORKERS`, default 2).
-Ones still running when the server stops are marked `failed` on the next start.
+When run locally, investigations run on a small thread pool (`LOG_INSPECTOR_INVESTIGATION_WORKERS`, default 2).
+(Deployed to AWS, they run on SQS instead.) Ones still running when the server stops are marked `failed` on the next start.
 
 To try it against a real AWS account, see [docs/real-aws-testing.md](docs/real-aws-testing.md).
 
